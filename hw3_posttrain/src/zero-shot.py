@@ -16,7 +16,7 @@ from vllm import LLM, SamplingParams
 from data.drgrpo_grader import r1_zero_reward_fn
 
 # --- Configuration ---
-MODEL_NAME = "Qwen/Qwen2.5-0.6B"
+MODEL_NAME = "qwen2.5-0.5B_model"
 DATASET_PATH = Path("./data/gsm8k/test.jsonl")
 PROMPT_TEMPLATE_PATH = Path("./data/r1_zero.prompt")
 RESULTS_DIR = Path("results")
@@ -131,11 +131,29 @@ class R1ZeroEvaluator:
 
                 # Compute normalized log-likelihood for Best@N selection
                 if completion.logprobs:
+                    # ! Some bug here in vLLM data structure
+                    """
                     # Sum log probabilities over all tokens
                     total_logprob = sum(token_logprobs.logprob for token_logprobs in completion.logprobs)
                     # Normalize by number of tokens
                     num_tokens = len(completion.logprobs)
                     normalized_logprob = total_logprob / num_tokens if num_tokens > 0 else float('-inf')
+                    # """
+
+                    # ! My implementation
+                    total_logprob = 0.0
+                    num_tokens = 0
+                    logprob_dicts = completion.logprobs
+                    chosen_token_ids = completion.token_ids
+                    for chosen_id, logprob_dict in zip(chosen_token_ids, logprob_dicts):
+                        if chosen_id in logprob_dict:
+                            logprob_object = logprob_dict[chosen_id]
+                            total_logprob += logprob_object.logprob
+                            num_tokens += 1
+                        else:
+                            pass
+                    normalized_logprob = total_logprob / num_tokens if num_tokens > 0 else float('-inf')
+                    # ! ======================================
                 else:
                     normalized_logprob = float('-inf')
 
